@@ -160,10 +160,10 @@ class UI_EdgeTpuDevBoard(UI):
       return pwm
     try:
       self._LEDs = [GPIO(86, "out"),
-                    initPWM(1),
+                    GPIO(77, "out"),
                     initPWM(0),
                     GPIO(140, "out"),
-                    initPWM(2)]
+                    GPIO(73, "out")]
       self._buttons = [GPIO(141, "in"),
                        GPIO(8, "in"),
                        GPIO(7, "in"),
