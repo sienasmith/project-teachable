@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 #
 # Copyright 2019 Google LLC
@@ -14,10 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+import board
 import argparse
 import sys
 import os
 import time
+import threading
 
 from collections import deque, Counter
 from functools import partial
@@ -152,6 +156,19 @@ class UI_EdgeTpuDevBoard(UI):
   def __init__(self):
     global GPIO, PWM
     from periphery import GPIO, PWM, GPIOError
+    from adafruit_motor import servo
+    import pulseio
+
+# create a PWMOut object on Pin PWM3.
+#pwm1 = pulseio.PWMOut(board.PWM1, duty_cycle=2 ** 15, frequency=50)
+#pwm2 = pulseio.PWMOut(board.PWM2, duty_cycle=2 ** 15, frequency=50)
+    pwm3 = pulseio.PWMOut(board.PWM3, duty_cycle=2 ** 15, frequency=50)
+
+# Create a servo object, my_servo.
+#my_servo1 = servo.Servo(pwm1)
+#my_servo2 = servo.Servo(pwm2)
+    self.my_servo3 = servo.Servo(pwm3)
+
     def initPWM(pin):
       pwm = PWM(pin, 0)
       pwm.frequency = 1e3
@@ -160,15 +177,17 @@ class UI_EdgeTpuDevBoard(UI):
       return pwm
     try:
       self._LEDs = [GPIO(86, "out"),
-                    GPIO(77, "out"),
+                    GPIO(77,"out"),
                     initPWM(0),
                     GPIO(140, "out"),
-                    GPIO(73, "out")]
+                    GPIO(73,"out"),
+]
       self._buttons = [GPIO(141, "in"),
                        GPIO(8, "in"),
                        GPIO(7, "in"),
                        GPIO(138, "in"),
-                       GPIO(6, "in")]
+                       GPIO(6, "in"),
+]
     except GPIOError as e:
       print("Unable to access GPIO pins. Did you run with sudo ?")
       sys.exit(1)
@@ -189,6 +208,30 @@ class UI_EdgeTpuDevBoard(UI):
 
 
 class TeachableMachine(object):
+
+  def servoRun(self, flag): #this has to be defined above init or the servo thread can't target it
+      # print("Thread started.")
+    while True:
+      for angle in range(0, 180, 5):  # 0 - 180 degrees, 5 degrees at a time.
+           #print(flag.isSet())
+        flag.wait()
+      # my_servo1.angle = angle
+      # my_servo2.angle = angle
+        self._ui.my_servo3.angle = angle
+        time.sleep(0.05)
+          # print("Thread running.")
+      for angle in range(180, 0, -5): # 180 - 0 degrees, 5 degrees at a time.
+          # print(flag.isSet())
+        flag.wait()
+      # my_servo1.angle = angle
+      # my_servo2.angle = angle
+        self._ui.my_servo3.angle = angle
+
+        time.sleep(0.05)
+          # print(flag.isSet())
+
+
+
   def __init__(self, model_path, ui, kNN=3, buffer_length=4):
     assert os.path.isfile(model_path), 'Model file %s not found'%model_path
     self._engine = kNNEmbeddingEngine(model_path, kNN)
@@ -197,6 +240,11 @@ class TeachableMachine(object):
     self._kNN = kNN
     self._start_time = time.time()
     self._frame_times = deque(maxlen=40)
+    self._servoFlag = threading.Event() #this controls when the thread runs
+    self._servo = threading.Thread(target=self.servoRun, args=tuple([self._servoFlag]), daemon=True) #daemon means it shuts off w/ rest of program
+    self._servo.start()
+
+
 
   def classify(self, img, svg):
     # Classify current image and determine
@@ -205,17 +253,34 @@ class TeachableMachine(object):
     classification = Counter(self._buffer).most_common(1)[0][0]
 
     # Interpret user button presses (if any)
-    debounced_buttons = self._ui.getDebouncedButtonState()
+    debounced_buttons = self._ui.getButtonState()
+    n = 2
+    servoRunning = False
     for i, b in enumerate(debounced_buttons):
-      if not b: continue
+      if not b:
+        # when n isn't pressed and is recognized, continue actuating
+        if i == n and classification == n:
+          servoRunning = True
+        elif classification != n: #when the classification isn't n, stop actuating
+          servoRunning = False
+        continue
       if i == 0: self._engine.clear() # Hitting button 0 resets
       else : self._engine.addEmbedding(emb, i) # otherwise the button # is the class
-
+      servoRunning = False # don't run servo during any button press
     self._frame_times.append(time.time())
+    if servoRunning:
+      self._servoFlag.set()
+        #print("Thread resumed?")
+    else:
+      self._servoFlag.clear()
+        #print("Thread stopped?")
     fps = len(self._frame_times)/float(self._frame_times[-1] - self._frame_times[0] + 0.001)
 
     # Print/Display results
     self._ui.setOnlyLED(classification)
+
+
+
     classes = ['--', 'One', 'Two', 'Three', 'Four']
     status = 'fps %.1f; #examples: %d; Class % 7s'%(
             fps, self._engine.exampleCount(),
@@ -260,6 +325,11 @@ def main(args):
     result = gstreamer.run_pipeline(teachable.classify)
 
     ui.wiggleLEDs(4)
+    teachable._servoFlag.set()
+    time.sleep(1)
+    teachable._servoFlag.clear()
+
+
 
 
 if __name__ == '__main__':
