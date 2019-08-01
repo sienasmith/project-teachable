@@ -160,13 +160,13 @@ class UI_EdgeTpuDevBoard(UI):
     import pulseio
 
 # create a PWMOut object on Pin PWM3.
-#pwm1 = pulseio.PWMOut(board.PWM1, duty_cycle=2 ** 15, frequency=50)
-#pwm2 = pulseio.PWMOut(board.PWM2, duty_cycle=2 ** 15, frequency=50)
+    pwm1 = pulseio.PWMOut(board.PWM1, duty_cycle=2 ** 15, frequency=50)
+    pwm2 = pulseio.PWMOut(board.PWM2, duty_cycle=2 ** 15, frequency=50)
     pwm3 = pulseio.PWMOut(board.PWM3, duty_cycle=2 ** 15, frequency=50)
 
 # Create a servo object, my_servo.
-#my_servo1 = servo.Servo(pwm1)
-#my_servo2 = servo.Servo(pwm2)
+    self.my_servo1 = servo.Servo(pwm1)
+    self.my_servo2 = servo.Servo(pwm2)
     self.my_servo3 = servo.Servo(pwm3)
 
     def initPWM(pin):
@@ -210,25 +210,29 @@ class UI_EdgeTpuDevBoard(UI):
 class TeachableMachine(object):
 
   def servoRun(self, flag): #this has to be defined above init or the servo thread can't target it
-      # print("Thread started.")
-    while True:
+      # print("Thread started.")		  
+	while True:
       for angle in range(0, 180, 5):  # 0 - 180 degrees, 5 degrees at a time.
-           #print(flag.isSet())
-        flag.wait()
-      # my_servo1.angle = angle
-      # my_servo2.angle = angle
-        self._ui.my_servo3.angle = angle
+      # print(flag.isSet())
+		self._ui.my_servo3.angle = 90 # continuous servo must stop at each increment
+      # flag.wait()
+        self._ui.my_servo1.angle = angle / 2 # servo 1 (NC) moves 90 degrees
+        self._ui.my_servo2.angle = angle # servo 2 (NC) moves 180 degrees
+        self._ui.my_servo3.angle = 141  # servo 3 (C) moves roughly 2 full turns
         time.sleep(0.05)
-          # print("Thread running.")
+      # print("Thread running.")
       for angle in range(180, 0, -5): # 180 - 0 degrees, 5 degrees at a time.
-          # print(flag.isSet())
-        flag.wait()
-      # my_servo1.angle = angle
-      # my_servo2.angle = angle
-        self._ui.my_servo3.angle = angle
+      # print(flag.isSet())
+        self._ui.my_servo3.angle = 90
+      # flag.wait()
+        self._ui.my_servo1.angle = angle / 2
+        self._ui.my_servo2.angle = angle #NC
+		self._ui.my_servo3.angle = 39       #C
+		time.sleep(0.05)
+		# print(flag.isSet())
 
-        time.sleep(0.05)
-          # print(flag.isSet())
+
+
 
 
 
